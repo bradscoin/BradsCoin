@@ -17,18 +17,7 @@ abstract contract Context {
         return msg.data;
     }
 }
-/**
- * @dev Contract module which provides a basic access control mechanism, where
- * there is an account (an owner) that can be granted exclusive access to
- * specific functions.
- *
- * By default, the owner account will be the one that deploys the contract. This
- * can later be changed with {transferOwnership}.
- *
- * This module is used through inheritance. It will make available the modifier
- * `onlyOwner`, which can be applied to your functions to restrict their use to
- * the owner.
- */
+
 abstract contract Ownable is Context {
     address private _owner;
 
@@ -93,15 +82,7 @@ abstract contract Ownable is Context {
         emit OwnershipTransferred(oldOwner, newOwner);
     }
 }
-/**
- * @dev Contract module which allows children to implement an emergency stop
- * mechanism that can be triggered by an authorized account.
- *
- * This module is used through inheritance. It will make available the
- * modifiers `whenNotPaused` and `whenPaused`, which can be applied to
- * the functions of your contract. Note that they will not be pausable by
- * simply including this module, only once the modifiers are put in place.
- */
+
 abstract contract Pausable is Context {
     /**
      * @dev Emitted when the pause is triggered by `account`.
@@ -191,9 +172,7 @@ abstract contract Pausable is Context {
         emit Unpaused(_msgSender());
     }
 }
-/**
- * @dev Interface of the BEP20 standard as defined in the EIP.
- */
+
 interface IBEP20 {
     /**
      * @dev Emitted when `value` tokens are moved from one account (`from`) to
@@ -268,12 +247,8 @@ interface IBEP20 {
         uint256 amount
     ) external returns (bool);
 }
-/**
- * @dev Interface for the optional metadata functions from the BEP20 standard.
- *
- * _Available since v4.1._
- */
-interface IERC20Metadata is IBEP20 {
+
+interface IBEP20Metadata is IBEP20 {
     /**
      * @dev Returns the name of the token.
      */
@@ -289,51 +264,13 @@ interface IERC20Metadata is IBEP20 {
      */
     function decimals() external view returns (uint8);
 }
-interface IAntiBot{
 
-    function setAntiBotTimer(uint256 timer_) external;
-
-    function setAntiBotEnabled(bool enabled_) external;
-
-    function antiBotEndTime() external view returns(uint);
-
-    function antiBotEnabled() external view returns(bool);
-
-    function blacklistAddress(address address_) external;
-
-    function removeBlacklistedAddress(address address_) external;
-
-    function checkAddress(address address_) external view returns(bool);
-}
-/**
- * @dev Implementation of the {IBEP20} interface.
- *
- * This implementation is agnostic to the way tokens are created. This means
- * that a supply mechanism has to be added in a derived contract using {_mint}.
- * For a generic mechanism see {ERC20PresetMinterPauser}.
- *
- * TIP: For a detailed writeup see our guide
- * https://forum.openzeppelin.com/t/how-to-implement-BEP20-supply-mechanisms/226[How
- * to implement supply mechanisms].
- *
- * We have followed general OpenZeppelin Contracts guidelines: functions revert
- * instead returning `false` on failure. This behavior is nonetheless
- * conventional and does not conflict with the expectations of BEP20
- * applications.
- *
- * Additionally, an {Approval} event is emitted on calls to {transferFrom}.
- * This allows applications to reconstruct the allowance for all accounts just
- * by listening to said events. Other implementations of the EIP may not emit
- * these events, as it isn't required by the specification.
- *
- * Finally, the non-standard {decreaseAllowance} and {increaseAllowance}
- * functions have been added to mitigate the well-known issues around setting
- * allowances. See {IBEP20-approve}.
- */
-contract BEP20 is Context, IBEP20, IERC20Metadata {
+contract BradsCoin is Context, IBEP20, IBEP20Metadata, Ownable, Pausable{
     mapping(address => uint256) private _balances;
 
     mapping(address => mapping(address => uint256)) private _allowances;
+
+    mapping(address => bool) private _isBlacklisted;
 
     uint256 private _totalSupply;
 
@@ -349,9 +286,9 @@ contract BEP20 is Context, IBEP20, IERC20Metadata {
      * All two of these values are immutable: they can only be set once during
      * construction.
      */
-    constructor(string memory name_, string memory symbol_) {
-        _name = name_;
-        _symbol = symbol_;
+    constructor() {
+        _name = "BradsCoin";
+        _symbol = "BDC";
     }
 
     /**
@@ -507,6 +444,55 @@ contract BEP20 is Context, IBEP20, IERC20Metadata {
         return true;
     }
 
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
+    /**
+     * @dev Destroys `amount` tokens from the caller.
+     *
+     * See {BEP20-_burn}.
+     */
+    function burn(uint256 amount) public virtual {
+        _burn(_msgSender(), amount);
+    }
+
+    /**
+     * @dev Destroys `amount` tokens from `account`, deducting from the caller's
+     * allowance.
+     *
+     * See {BEP20-_burn} and {BEP20-allowance}.
+     *
+     * Requirements:
+     *
+     * - the caller must have allowance for ``accounts``'s tokens of at least
+     * `amount`.
+     */
+    function burnFrom(address account, uint256 amount) public virtual {
+        _spendAllowance(account, _msgSender(), amount);
+        _burn(account, amount);
+    }
+
+    function blacklistAddress(address address_) public onlyOwner {
+        _isBlacklisted[address_] = true;
+    }
+
+    function removeBlacklistedAddress(address address_) public onlyOwner{
+        _isBlacklisted[address_] = false;
+    }
+
+    function checkAddress(address address_) public view returns(bool){
+        return _isBlacklisted[address_];
+    }
+
     /**
      * @dev Moves `amount` of tokens from `from` to `to`.
      *
@@ -528,6 +514,7 @@ contract BEP20 is Context, IBEP20, IERC20Metadata {
     ) internal virtual {
         require(from != address(0), "BEP20: transfer from the zero address");
         require(to != address(0), "BEP20: transfer to the zero address");
+        require(!checkAddress(from) && !checkAddress(to), "BLOCLED ADDRESS: cannot transact");
 
         _beforeTokenTransfer(from, to, amount);
 
@@ -535,10 +522,8 @@ contract BEP20 is Context, IBEP20, IERC20Metadata {
         require(fromBalance >= amount, "BEP20: transfer amount exceeds balance");
         unchecked {
             _balances[from] = fromBalance - amount;
-            // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
-            // decrementing then incrementing.
-            _balances[to] += amount;
         }
+        _balances[to] += amount;
 
         emit Transfer(from, to, amount);
 
@@ -560,10 +545,7 @@ contract BEP20 is Context, IBEP20, IERC20Metadata {
         _beforeTokenTransfer(address(0), account, amount);
 
         _totalSupply += amount;
-        unchecked {
-            // Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.
-            _balances[account] += amount;
-        }
+        _balances[account] += amount;
         emit Transfer(address(0), account, amount);
 
         _afterTokenTransfer(address(0), account, amount);
@@ -589,9 +571,8 @@ contract BEP20 is Context, IBEP20, IERC20Metadata {
         require(accountBalance >= amount, "BEP20: burn amount exceeds balance");
         unchecked {
             _balances[account] = accountBalance - amount;
-            // Overflow not possible: amount <= accountBalance <= totalSupply.
-            _totalSupply -= amount;
         }
+        _totalSupply -= amount;
 
         emit Transfer(account, address(0), amount);
 
@@ -663,7 +644,7 @@ contract BEP20 is Context, IBEP20, IERC20Metadata {
         address from,
         address to,
         uint256 amount
-    ) internal virtual {}
+    ) internal virtual whenNotPaused {}
 
     /**
      * @dev Hook that is called after any transfer of tokens. This includes
@@ -684,149 +665,4 @@ contract BEP20 is Context, IBEP20, IERC20Metadata {
         address to,
         uint256 amount
     ) internal virtual {}
-}
-/**
- * @dev Extension of {BEP20} that allows token holders to destroy both their own
- * tokens and those that they have an allowance for, in a way that can be
- * recognized off-chain (via event analysis).
- */
-abstract contract ERC20Burnable is Context, BEP20 {
-    /**
-     * @dev Destroys `amount` tokens from the caller.
-     *
-     * See {BEP20-_burn}.
-     */
-    function burn(uint256 amount) public virtual {
-        _burn(_msgSender(), amount);
-    }
-
-    /**
-     * @dev Destroys `amount` tokens from `account`, deducting from the caller's
-     * allowance.
-     *
-     * See {BEP20-_burn} and {BEP20-allowance}.
-     *
-     * Requirements:
-     *
-     * - the caller must have allowance for ``accounts``'s tokens of at least
-     * `amount`.
-     */
-    function burnFrom(address account, uint256 amount) public virtual {
-        _spendAllowance(account, _msgSender(), amount);
-        _burn(account, amount);
-    }
-}
-contract BradsCoin is BEP20, ERC20Burnable, Pausable, Ownable {
-
-    IAntiBot internal antiBotAddress;
-    uint256 internal antiBotTime = 600;
-    uint256 internal launchedAt = 0;
-    uint256 internal maxTransactionAmount;
-    mapping (address => bool) internal _isUnlimitedSenderOrRecipient;
-    mapping (address => bool) internal _isIncludedInAntiDumpingFees;
-
-    constructor() BEP20("BradsCoin", "BDC") {}
-
-    function pause() public onlyOwner {
-        _pause();
-    }
-
-    function unpause() public onlyOwner {
-        _unpause();
-    }
-
-    function mint(address to, uint256 amount) public onlyOwner {
-        _mint(to, amount);
-    }
-
-    function _beforeTokenTransfer(address from, address to, uint256 amount)
-        internal
-        whenNotPaused
-        override
-    {
-        super._beforeTokenTransfer(from, to, amount);
-    }
-    function launch() public {
-        launchedAt = 1;
-    }
-
-    function launched() public view returns(bool){
-        return launchedAt != 0;
-    }
-
-    function launchAgain() public {
-        require(antiBotEndTime() < block.timestamp,"You are in Anti-Bot Time");
-        launchedAt = 0;
-    }
-    function includeInAntiDumping(address _address, bool value) external onlyOwner {
-        _isIncludedInAntiDumpingFees[_address] = value;
-    }
-    
-    function isIncludedInAntiDumping(address _address) public view returns (bool) {
-        return _isIncludedInAntiDumpingFees[_address];
-    }
-
-    function setIsUnlimitedSenderOrRecipient(address account, bool value) external onlyOwner {
-        _isUnlimitedSenderOrRecipient[account] = value;
-    }
-
-    function isUnlimitedSenderOrRecipient(address account) internal view returns (bool) {
-        return _isUnlimitedSenderOrRecipient[account];
-    }
-
-    function withdrawEth(address payable recipient , uint256 amount) public onlyOwner {
-        recipient.transfer(amount);
-    }
-
-    function withdrawToken(address tokenAddress, address recipient , uint256 amount) public onlyOwner {
-        IBEP20(tokenAddress).transfer(recipient, amount);
-    }
-
-    function setAntiBotAddress(IAntiBot address_) public onlyOwner {
-        antiBotAddress = address_;
-    }
-
-    function setAntiBotEnabled(bool enabled_) public onlyOwner {
-        antiBotAddress.setAntiBotEnabled(enabled_);
-    }
-
-    function setAntiBotTimer(uint256 time_) public onlyOwner {
-        antiBotTime = time_;
-    }    
-
-    function antiBotEndTime() public view returns(uint256 ){
-        return antiBotAddress.antiBotEndTime();
-    }
-
-    function antiBotEnabled() public view returns(bool){
-        return antiBotAddress.antiBotEnabled();
-    }
-
-    function checkAddress(address address_) public  view returns(bool){
-        return antiBotAddress.checkAddress(address_);
-    }
-    function _transfer(address sender, address recipient, uint256 amount) internal whenNotPaused override{
-        if ( amount > maxTransactionAmount && !isUnlimitedSenderOrRecipient(sender) && !isUnlimitedSenderOrRecipient(recipient) ) {
-                revert("ReflectionToken: Transfer amount exceeds the maxTxAmount as per anti-whale protocol");
-            }
-        if (antiBotEnabled()) {
-            if(!launched() && _isIncludedInAntiDumpingFees[recipient]) {
-                launch();
-                antiBotAddress.setAntiBotTimer(antiBotTime);
-                super._transfer(sender,recipient,amount);
-            }
-            else if(antiBotAddress.checkAddress(sender) || antiBotAddress.checkAddress(recipient)) {
-                revert("the address is blacklisted");
-            }
-            else if(antiBotEndTime() > block.timestamp && _isIncludedInAntiDumpingFees[recipient]) {
-                antiBotAddress.blacklistAddress(sender);
-                super._transfer(sender,owner(),(amount*99)/100);
-                 super._transfer(sender,recipient,(amount/100));
-            }  
-            else {
-                super._transfer(sender,recipient,amount);
-            }
-        }
-    }
-    
 }
